@@ -15,6 +15,8 @@ class CustomUser(AbstractUser):
     customMethods=CustomeUserMethods()
 class Category(models.Model):
     name = models.CharField(max_length=100)
+    created_at=models.DateTimeField(auto_now_add=True)
+    updated_at=models.DateTimeField(auto_now=True)
     objects=models.Manager()
 
     def __str__(self):
@@ -27,24 +29,15 @@ class Post(models.Model):
     created_at=models.DateField(auto_now_add=True)
     updated_at=models.DateField(auto_now=True)
     objects=models.Manager()
-    postManager=PostManager()
-    def save(self, *args, **kwargs):
-        # Check if the category exists, if not, create it
-        if not self.category.id:
-            try:
-                existing_category = Category.objects.get(name=self.category.name)
-                self.category = existing_category
-            except Exception as e:
-                print(e)
-                self.category.save()
-
-        super().save(*args, **kwargs)
+    customCreate=PostManager()
+    
 
 class Comments(models.Model):
     postid=models.ForeignKey(Post, on_delete=models.CASCADE)
     userid=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
-    parent_comment_id=models.ForeignKey("self",blank=True,on_delete=models.CASCADE,related_name="parent_comment")
+    parent_comment_id=models.ForeignKey("self",null=True,blank=True,on_delete=models.CASCADE,related_name="parent_comment")
     comments=models.CharField(max_length=200)
+    objects=models.Manager()
 class CustomToken(models.Model):
     user=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
     access_token = models.CharField(max_length=255)

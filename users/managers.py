@@ -2,6 +2,7 @@ from typing import Any
 from django.contrib.auth.base_user import BaseUserManager
 from django.utils.translation import gettext_lazy as _
 from django.db import models
+# from .models import Category
 
 
 
@@ -47,6 +48,14 @@ class CustomTokenManager(models.Manager):
         # return super().get_queryset().filter(access_token=token).first().delete()
     def get_all(self):
         return super().get_queryset().all()
+class CustomeCategory(models.Manager):
+    def Apply_custome_filter_on_id_and_name(self,name,id):
+
+        return super().get_queryset().all()
 class PostManager(models.Manager):
     def create_post(self, **kwargs: Any) -> Any:
+        print("in managers")
+        # category=Category.objects.filter(name=kwargs.get("category")).first()
+        # print(category)
+        print(kwargs)
         return super().create(**kwargs)

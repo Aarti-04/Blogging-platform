@@ -4,7 +4,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.tokens import Token
-from .models import CustomUser,CustomToken,Post
+from .models import CustomUser,CustomToken,Post,Category,Comments
 class CustomTokenObtainPairSerializers(TokenObtainPairSerializer):
     def validate(self, attrs: Dict[str, Any]) -> Dict[str, str]:
         credentials={
@@ -39,9 +39,24 @@ class CustomeUserSerializer(serializers.ModelSerializer):
     class Meta:
         model=CustomUser
         fields=["email"]
+class CategorySerializer(serializers.ModelSerializer):  
+    # userid=CustomeUserSerializer(many=False)
+    class Meta:
+        model=Category
+        fields="__all__"
 class PostSerializer(serializers.ModelSerializer):  
     userid=CustomeUserSerializer(many=False)
+    category=CategorySerializer(many=False)
     class Meta:
         model=Post
         fields="__all__"
-    
+class CommentSerializer(serializers.ModelSerializer):  
+    userid=CustomeUserSerializer(many=False)
+    postid=PostSerializer(many=False)
+    class Meta:
+        model=Comments
+        fields="__all__"
+class FilterCommentSerializer(serializers.ModelSerializer):  
+       class Meta:
+        model=Comments
+        fields=["id","comments","postid"]
