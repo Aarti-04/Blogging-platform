@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from rest_framework.views import APIView,Response,status
+from django.http import JsonResponse
 from .managers import CustomUserManager,PostManager
 from django.contrib.auth import authenticate,login,logout
 from .models import CustomUser,CustomToken,Post,Category,Comments
@@ -9,7 +10,8 @@ from rest_framework.permissions import IsAuthenticated,IsAdminUser,AllowAny
 from django.utils import timezone
 from .permissions import IsOwnerOrReadOnly
 from django.db import IntegrityError
-from django.db.models import Q
+from django.db.models import Q,Prefetch
+
 
 def get_auth_token(authenticatedUser):
     # token_serializer = CustomTokenObtainPairSerializers()
@@ -27,7 +29,23 @@ class AdminApiView(APIView):
     def get(self,request):
 
         return Response({"admin":"admin"})
-    
+    def patch(self,request):
+        response={
+                "response":
+                {
+                    "message": "",
+                    "code": ""
+                }
+        }
+        data =request.data
+        user=CustomUser.objects.get(pk=data.get("id"))
+        user.is_active=False
+        user.save()
+        response["response"]["message"]="User Blocked successfully"
+        response["response"]["status"]=status.HTTP_200_OK
+
+        return Response(response)
+
     def delete(self,request,*args, **kwargs):
         response={
                 "status":
@@ -74,6 +92,7 @@ class UserApiView(APIView):
         response["status"]["code"]=status.HTTP_200_OK
         return Response(response)
     def post(self,request):
+        # print("login in")
         response={
                 "status":
                 {
@@ -156,6 +175,7 @@ class UserApiView(APIView):
 
 class UserLoginApiView(APIView):
     def post(self,request):
+        print("in login")
         user =request.data
         authenticatedUser=authenticate(request,**user)
         print("before login user")
@@ -218,7 +238,6 @@ class UserLogoutView(APIView):
         return Response(response)
 
 class PostApiView(APIView):
-    # permission_classes=[IsOwnerOrReadOnly]
     def get(self,request):
         response={
             "response":
@@ -226,12 +245,36 @@ class PostApiView(APIView):
                 "message":"",
                 "code": ""
             },}
-        all_post=Post.objects.all()
-        SerializedPost=PostSerializer(all_post,many=True)
+        params=request.GET
+        filters={}
+        for key,value in params.items():
+            filters[key]=value
+        all_post = Post.objects.prefetch_related("post_comment")
+        if "orderby" in filters:
+            all_post=all_post.order_by(filters.get("orderby"))
+        if "title" in filters:
+            all_post=all_post.filter(title__istartswith=filters.get("title"))
+        if "search" in filters:
+            all_post=all_post.filter(Q(title__icontains=filters.get("search")) | Q(category__name__icontains=filters.get("search")))
+        posts_data=[]
+        for post in all_post:
+            post_data = {
+            'id':post.id,
+            'title': post.title,
+            'content': post.content,
+            'userid':post.userid,
+            'category':post.category,
+            'created_at':post.created_at,
+            'updated_at':post.updated_at,
+            'comments': [{'comments': comment.comments,'id':comment.id,"userid":comment.userid,"postid":comment.postid,"parent_comment_id":comment.parent_comment_id,"created_at":comment.created_at,"updated_at":comment.updated_at} for comment in post.post_comment.all()]
+            }
+            posts_data.append(post_data)
+        print(posts_data)
+        SerializedPost=PostSerializer(posts_data,many=True)
         response["response"]["data"]=SerializedPost.data
         response["response"]["status"]=status.HTTP_200_OK
         response["response"]["message"]="All post"
-        return Response(response)
+        return JsonResponse(response)
     def post(self,request):
         response={
                 "response":
@@ -252,8 +295,8 @@ class PostApiView(APIView):
                 response["response"]["code"]=status.HTTP_201_CREATED
                 return Response(response)
         except Exception as e:
-            response["status"]["message"]=f"Error {e} "
-            response["status"]["code"]=status.HTTP_400_BAD_REQUEST
+            response["response"]["message"]=f"Error {e} "
+            response["response"]["code"]=status.HTTP_400_BAD_REQUEST
             return Response(response)
         
     def patch(self,request,*args,**kwargs):
@@ -412,7 +455,7 @@ class CategoryApiView(APIView):
             for key,value in new_data_to_update.items():
                 setattr(category_to_update, key, value)
             category_updated= category_to_update.save()
-            if category_updated is not None:
+            if category_updated is None:
                 response["response"]["message"]="Category updated successfully"
                 response["response"]["code"]=status.HTTP_200_OK
                 print("on 363",category_to_update)
@@ -452,53 +495,33 @@ class Commentofpost(APIView):
                 "message":"",
                 "status": ""
             },}
-        postid=request.query_params.get('postid')
-        print("geeeeee")
-        if postid:
-            single_category=Comments.objects.filter(Q(postid=postid)).all()
-            print(single_category)
-            if single_category is None:
-                response["status"]["data"]=""
-                response["status"]["status"]=status.HTTP_404_NOT_FOUND
-                response["status"]["message"]="No Data Found"
-                return Response(response)
-            else:
-                SerializedCategory=FilterCommentSerializer(single_category,many=True)
-                response["status"]["data"]=SerializedCategory.data
-                response["status"]["status"]=status.HTTP_200_OK
-                response["status"]["message"]="Single Category"
-                return Response(response)
-        response["status"]["status"]=status.HTTP_400_BAD_REQUEST
-        response["status"]["message"]="Category name not found"
-        return Response(response)
+        comment_type=request.GET.get("type")
+        comment_type=str(comment_type).strip().lower().replace(" ","")
+        if comment_type=="comment":
+            postid=request.query_params.get('postid')
+            # print("geeeeee")
+            if postid:
+                single_category=Comments.objects.filter(Q(postid=postid) | Q(parent_comment_id=None)).all()
+                print(single_category)
+                if single_category is None:
+                    response["status"]["data"]=""
+                    response["status"]["status"]=status.HTTP_404_NOT_FOUND
+                    response["status"]["message"]="No Data Found"
+                    return Response(response)
+                else:
+                    SerializedCategory=FilterCommentSerializer(single_category,many=True)
+                    response["status"]["data"]=SerializedCategory.data
+                    response["status"]["status"]=status.HTTP_200_OK
+                    response["status"]["message"]="All comments of single post"
+                    return Response(response)
+            response["status"]["status"]=status.HTTP_400_BAD_REQUEST
+            response["status"]["message"]="postid not found"
+            return Response(response)
 class CommentApiView(APIView):
-    def get(self,request):
-        response={
-            "response":
-            {
-                "message":"",
-                "code": ""
-            },}
-        all_comments=Comments.objects.all()
-        serialized_comments=CommentSerializer(all_comments,many=True)
 
-        response["response"]["data"]=serialized_comments.data
-        response["response"]["status"]=status.HTTP_200_OK
-        response["response"]["message"]="Comment Added"
-        return Response(response)
-    def post(self,request):
-        response={
-            "response":
-            {
-                "message":"",
-                "code": ""
-            },}
-        # type=request.params.get("type")
-        new_comment_data=request.data
-        new_comment=Comments()
-        print("on 455")
-        print(new_comment)
-        # request_type=request.params.get("type")
+    #Custome_method
+
+    def assign_comment_data_to_comment_object(self,new_comment_data,new_comment):
         for column,value in new_comment_data.items():
             if column=="userid":
                 userid_to_comment=CustomUser.objects.filter(id=value).first()
@@ -511,20 +534,79 @@ class CommentApiView(APIView):
                 print("on 465")
                 print(postid_to_comment)
                 setattr(new_comment,column,postid_to_comment)
-            # elif column=="parent_comment_id" and request_type=="reply":
-            #     postid_to_reply=Post.objects.filter(id=value).first()
-            #     setattr(new_comment,column,postid_to_reply)
+            elif column=="parent_comment_id":
+                parent_post_to_reply=Comments.objects.filter(id=value).first()
+                print("on 465")
+                print(parent_post_to_reply)
+                setattr(new_comment,column,parent_post_to_reply)
+                # elif column=="parent_comment_id" and request_type=="reply":
+                #     postid_to_reply=Post.objects.filter(id=value).first()
+                #     setattr(new_comment,column,postid_to_reply)
             else:
                 setattr(new_comment,column,value)
-        print("on 470")   
-        print(new_comment)
-        # new_comment_data["userid"]=request.user
-        # new_comment=Comments(**new_comment_data)
-        # setattr(new_comment,"parent_comment_id",None)
-        new_comment.save()
-        response["response"]["status"]=status.HTTP_201_CREATED
-        response["response"]["message"]="Comment Added"
+        return new_comment
+    def get(self,request):
+        response={
+            "response":
+            {
+                "message":"",
+                "code": ""
+            },}
+        
+        params=request.GET
+        print(params)
+        filters={}
+        for key,value in params.items():
+            filters[key]=value
+            print(key)
+        print(filters)
+        all_comments=Comments.objects.filter(**filters)
+
+        # # all_comments=Comments.objects.filter(Q(parent_comment_id=commentid) & Q(postid=postid))
+        # print(all_comments)
+        serialized_comments=CommentSerializer(all_comments,many=True)
+        # print(serialized_comments.data)
+        response["response"]["data"]=serialized_comments.data
+        response["response"]["status"]=status.HTTP_200_OK
+        response["response"]["message"]="All comments of post"
         return Response(response)
+    def post(self,request):
+        response={
+            "response":
+            {
+                "message":"",
+                "code": ""
+            },}
+        try:
+            comment_type=request.data.get("type")
+            comment_type=str(comment_type).strip().lower().replace(" ","")
+            new_comment_data=request.data
+            print(new_comment_data.get("userid"))
+            print(request.user)
+            if request.user.id==new_comment_data.get("userid"):
+                if comment_type=="comment":
+                    new_comment=Comments()
+                    new_comment=self.assign_comment_data_to_comment_object(new_comment_data,new_comment)
+                    new_comment.save()
+                    response["response"]["status"]=status.HTTP_201_CREATED
+                    response["response"]["message"]="Comment Added"
+                    return Response(response)
+                if comment_type=="reply":
+                    new_comment_data=request.data
+                    reply_to_comment=Comments()
+                    reply_to_comment=self.assign_comment_data_to_comment_object(new_comment_data,reply_to_comment)
+                    reply_to_comment.save()
+                    response["response"]["status"]=status.HTTP_201_CREATED
+                    response["response"]["message"]="Replied to comment Successfully"
+                    return Response(response)
+            else:
+                response["response"]["status"]=status.HTTP_400_BAD_REQUEST
+                response["response"]["message"]="You can't add comment from other's user id"
+                return Response(response)
+        except Exception as e:
+            response["response"]["status"]=status.HTTP_400_BAD_REQUEST
+            response["response"]["message"]=f"Error {e}"
+
     def delete(self,request):
         response={
             "response":
@@ -533,9 +615,7 @@ class CommentApiView(APIView):
                 "code": ""
             },}
         data=request.data
-        userid,postid,commentid=data.get("userid"),data.get("postid"),data.get("commentid")
-        print(userid)
-        print(request.user.id)
+        userid,commentid=data.get("userid"),data.get("commentid")
         if request.user.id==userid:
             print("i m in...")
             comment_of_user=Comments.objects.filter(userid=userid,id=commentid).first()

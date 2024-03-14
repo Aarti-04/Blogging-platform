@@ -22,22 +22,25 @@ class Category(models.Model):
     def __str__(self):
         return str(self.name)
 class Post(models.Model):
-    title=models.CharField(_("post title"),max_length=20)
+    title=models.CharField(_("post title"),max_length=100)
     content=models.CharField(_("post content"),max_length=200)
     userid=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
     category=models.ForeignKey(Category,on_delete=models.CASCADE)
-    created_at=models.DateField(auto_now_add=True)
-    updated_at=models.DateField(auto_now=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+    updated_at=models.DateTimeField(auto_now=True)
     objects=models.Manager()
     customCreate=PostManager()
     
 
 class Comments(models.Model):
-    postid=models.ForeignKey(Post, on_delete=models.CASCADE)
-    userid=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
-    parent_comment_id=models.ForeignKey("self",null=True,blank=True,on_delete=models.CASCADE,related_name="parent_comment")
+    postid=models.ForeignKey(Post, on_delete=models.CASCADE,related_name="post_comment")
+    userid=models.ForeignKey(CustomUser,on_delete=models.CASCADE,related_name="user_comment")
+    parent_comment_id=models.ForeignKey("self",null=True,default=None,blank=True,on_delete=models.CASCADE,related_name="parent_comment")
     comments=models.CharField(max_length=200)
     objects=models.Manager()
+    created_at=models.DateTimeField(auto_now_add=True)
+    updated_at=models.DateTimeField(auto_now=True)
+    
 class CustomToken(models.Model):
     user=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
     access_token = models.CharField(max_length=255)

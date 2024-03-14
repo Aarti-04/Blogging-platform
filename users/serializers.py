@@ -44,19 +44,25 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model=Category
         fields="__all__"
+
+class CommentSerializer(serializers.ModelSerializer):  
+    useremail=serializers.CharField(source='userid.email')
+    postitle=serializers.CharField(source='postid.title')
+    class Meta:
+        model=Comments
+        fields=["id","useremail","postitle","comments","created_at","updated_at","parent_comment_id"]
 class PostSerializer(serializers.ModelSerializer):  
-    userid=CustomeUserSerializer(many=False)
-    category=CategorySerializer(many=False)
+    useremail=serializers.CharField(source='userid.email')
+    categoryname=serializers.CharField(source="category.name")
+    # comments=serializers.CharField(source="")
+    comments = CommentSerializer(many=True, read_only=True)
     class Meta:
         model=Post
-        fields="__all__"
-class CommentSerializer(serializers.ModelSerializer):  
-    userid=CustomeUserSerializer(many=False)
-    postid=PostSerializer(many=False)
+        exclude = ['userid', 'category']
+class FilterCommentSerializer(serializers.ModelSerializer):  
+    postname = serializers.CharField(source='postid.title')
+    username = serializers.CharField(source='userid.email')
+    # reply=CommentSerializer(many=False)
     class Meta:
         model=Comments
         fields="__all__"
-class FilterCommentSerializer(serializers.ModelSerializer):  
-       class Meta:
-        model=Comments
-        fields=["id","comments","postid"]
