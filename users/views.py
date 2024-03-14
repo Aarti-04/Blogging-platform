@@ -519,8 +519,6 @@ class Commentofpost(APIView):
             return Response(response)
 class CommentApiView(APIView):
 
-    #Custome_method
-
     def assign_comment_data_to_comment_object(self,new_comment_data,new_comment):
         for column,value in new_comment_data.items():
             if column=="userid":
@@ -539,9 +537,6 @@ class CommentApiView(APIView):
                 print("on 465")
                 print(parent_post_to_reply)
                 setattr(new_comment,column,parent_post_to_reply)
-                # elif column=="parent_comment_id" and request_type=="reply":
-                #     postid_to_reply=Post.objects.filter(id=value).first()
-                #     setattr(new_comment,column,postid_to_reply)
             else:
                 setattr(new_comment,column,value)
         return new_comment
@@ -551,8 +546,7 @@ class CommentApiView(APIView):
             {
                 "message":"",
                 "code": ""
-            },}
-        
+            },}  
         params=request.GET
         print(params)
         filters={}
@@ -561,11 +555,7 @@ class CommentApiView(APIView):
             print(key)
         print(filters)
         all_comments=Comments.objects.filter(**filters)
-
-        # # all_comments=Comments.objects.filter(Q(parent_comment_id=commentid) & Q(postid=postid))
-        # print(all_comments)
         serialized_comments=CommentSerializer(all_comments,many=True)
-        # print(serialized_comments.data)
         response["response"]["data"]=serialized_comments.data
         response["response"]["status"]=status.HTTP_200_OK
         response["response"]["message"]="All comments of post"
@@ -635,5 +625,5 @@ class CommentApiView(APIView):
             return Response(response)
     def get_permissions(self):
         if self.request.method == 'GET':
-            return [AllowAny()]  # Allow access to unauthenticated users for GET requests
+            return [AllowAny()]
         return [IsAuthenticated()]    
