@@ -36,26 +36,18 @@ class CustomUserManager(BaseUserManager):
         if extra_fields.get("is_superuser") is not True:
             raise ValueError(_("Superuser must have is_superuser=True."))
         return self.create_user(email, password, **extra_fields)
-class CustomeUserMethods(models.Manager):
-    def first_user(self,id):
-       return super().get_queryset().filter(pk=id).first()
-class CustomTokenManager(models.Manager):
-    def check_token(self,access_token):
-        return super().get_queryset().filter(access_token=access_token).first()
-    def delete_token(self,token):
-        # print("in....")
-        print(token)
-        # return super().get_queryset().filter(access_token=token).first().delete()
-    def get_all(self):
-        return super().get_queryset().all()
-class CustomeCategory(models.Manager):
-    def Apply_custome_filter_on_id_and_name(self,name,id):
-
-        return super().get_queryset().all()
+# class CustomeUserMethods(models.Manager):
+#     def first_user(self,id):
+#        return super().get_queryset().filter(pk=id).first()
+# class CustomTokenManager(models.Manager):
+#     def check_token(self,access_token):
+#         return super().get_queryset().filter(access_token=access_token).first()
+#     def delete_token(self,token):
+#         # print("in....")
+#         print(token)
+#         # return super().get_queryset().filter(access_token=token).first().delete()
+#     def get_all(self):
+#         return super().get_queryset().all()
 class PostManager(models.Manager):
-    def create_post(self, **kwargs: Any) -> Any:
-        print("in managers")
-        # category=Category.objects.filter(name=kwargs.get("category")).first()
-        # print(category)
-        print(kwargs)
-        return super().create(**kwargs)
+    def get_post_and_related_comments(self):
+       return super().get_queryset().prefetch_related("post_comment")

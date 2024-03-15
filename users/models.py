@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
-from .managers import CustomUserManager,CustomeUserMethods,CustomTokenManager,PostManager
+from .managers import CustomUserManager,PostManager
 from django.conf import settings
 from django.utils import timezone
 
@@ -12,7 +12,7 @@ class CustomUser(AbstractUser):
     updated_at=models.DateTimeField(auto_now=True)
     REQUIRED_FIELDS=[]
     objects=CustomUserManager()
-    customMethods=CustomeUserMethods()
+    # customMethods=CustomeUserMethods()
 class Category(models.Model):
     name = models.CharField(max_length=100)
     created_at=models.DateTimeField(auto_now_add=True)
