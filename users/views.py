@@ -1,7 +1,7 @@
 from rest_framework.views import APIView,Response,status
 from django.contrib.auth import authenticate,login,logout
 from .models import CustomUser,CustomToken,Post,Category,Comments
-from .serializers import CustomeUserSerializer,PostSerializer,CategorySerializer,CommentSerializer,FilterCommentSerializer,UserChangedSerializer
+from .serializers import CustomeUserSerializer,PostSerializer,PostSerializer2,CommentReplySerializer2,CommentSerializer2,CategorySerializer,CommentSerializer,FilterCommentSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework.permissions import IsAuthenticated,IsAdminUser,AllowAny
 from django.utils import timezone
@@ -10,7 +10,7 @@ from django.db import IntegrityError
 from django.db.models import Q
 import jwt
 from datetime import datetime,timedelta
-
+import json
 def get_auth_token(authenticatedUser):
     access_token=AccessToken.for_user(authenticatedUser)
     refresh_token=RefreshToken.for_user(authenticatedUser)
@@ -27,43 +27,59 @@ class AdminApiView(APIView):
                     "code":code,
                 }
             }
+        if data is not None:
+            response["status"]["data"]=data
+        return Response(response)
     
     def get(self,request):
-
-        return Response({"admin":"admin"})
-    
+        userscount=CustomUser.objects.filter(is_active=True).count()
+        Postcount=Post.objects.all().count()
+        dashboard={
+            "post":Postcount,
+            "users":userscount
+            }
+        return self.create_response("Dashboard data",status.HTTP_200_OK,dashboard) 
     def patch(self,request):
-        data =request.data
-        type=request.data.get("type").lower().replace(" ","").strip()
-        user=CustomUser.objects.get(pk=data.get("id"))
-        if user:
-            if type=="block":
-                user.is_active=False
-                user.save()
-                return self.create_response("User Blocked successfully",status.HTTP_200_OK)
-            else:
-                user.is_active=True
-                user.save()
-                return self.create_response("User Unblocked successfully",status.HTTP_200_OK)
-        else:
-            return self.create_response("User Not Found",status.HTTP_404_NOT_FOUND)
-
-    def delete(self,request,*args, **kwargs):
+        data =request.GET
         try:
-            if "id" in kwargs:
-                user_id=kwargs.get("id")
-                print(user_id)
-            else:
-                return self.create_response("User id not found",status.HTTP_400_BAD_REQUEST)
-            user= CustomUser.objects.get(pk=user_id)
-            if user is not None:
-                user.delete()
-                return self.create_response("User Permenently Deleted By Admin",status.HTTP_200_OK)
+            type=data.get("type") or "block"
+            type=type.lower().replace(" ","").strip()
+            print(data.get("id"))
+            user=CustomUser.objects.get(id=data.get("id"))
+            print(user)
+            if user:
+                if type=="block":
+                    print("in block")
+                    user.is_active=False
+                    user.save()
+                    return self.create_response("User Blocked successfully",status.HTTP_200_OK)
+                else:
+                    user.is_active=True
+                    user.save()
+                    return self.create_response("User Unblocked successfully",status.HTTP_200_OK)
             else:
                 return self.create_response("User Not Found",status.HTTP_404_NOT_FOUND)
-
         except Exception as e:
-            return self.create_response(f"Error {e} ",status.HTTP_400_BAD_REQUEST)
+            return self.create_response(f"Error {e}",status.HTTP_404_NOT_FOUND)
+
+
+    def delete(self,request,*args, **kwargs):
+        
+        try:
+            userid = int(self.request.GET['userid'])
+            print(userid)
+            if userid is not None:
+                user= CustomUser.objects.get(id=userid)
+                print(user)
+                if user:
+                    user.delete()
+                    return self.create_response("User Permenently Deleted By Admin",status.HTTP_200_OK)
+                else:
+                    return self.create_response("User Not Found",status.HTTP_404_NOT_FOUND)
+            else:
+                return self.create_response("User id not found",status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return self.create_response(f"Error",status.HTTP_400_BAD_REQUEST)
 class UserApiView(APIView):
     permission_classes=[IsAuthenticateUser]
     def create_response(self,message,code,data=None):
@@ -80,24 +96,22 @@ class UserApiView(APIView):
      
     def get(self,request):
         params=request.GET
-        try:
-            users_data=CustomUser.objects.all()
-            if "orderby" in params:
-                users=users_data.order_by(params.get("orderby"))
-            if "search" in params:
-                users=users_data.filter(Q(email__icontains=params.get("search"))|Q(first_name__icontains=params.get("search"))|Q(last_name__icontains=params.get("search")))
-            if users_data:
-                serialized_users=CustomeUserSerializer(users,many=True)
-                return self.create_response("all users",status.HTTP_200_OK,serialized_users.data)
-            else:
-                return self.create_response("No User Found",status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return self.create_response(f"Error {e}",status.HTTP_400_BAD_REQUEST)
-
+        users_data=CustomUser.objects.filter(is_active=True)
+        if "orderby" in params:
+            users_data=users_data.order_by(params.get("orderby"))
+        if "search" in params:
+            users_data=users_data.filter(Q(email__icontains=params.get("search"))|Q(first_name__icontains=params.get("search"))|Q(last_name__icontains=params.get("search")))
+        if users_data:
+            serialized_users=CustomeUserSerializer(users_data,many=True)
+            return self.create_response("all users",status.HTTP_200_OK,serialized_users.data)
+        else:
+            return self.create_response("No User Found",status.HTTP_404_NOT_FOUND)
     def post(self,request):
         user=request.data
         if "email" not in user or "password" not in user:
             raise ValueError("Email and Password is required") 
+        password=user["password"]
+
         User=CustomeUserSerializer(data=user)
         try:
             if User.is_valid(raise_exception=True):
@@ -124,17 +138,20 @@ class UserApiView(APIView):
     
     def delete(self,request,*args, **kwargs):
         try:
-            if "id" in kwargs:
-                user_id=kwargs.get("id")
+            userid=int(self.request.GET['id'])
+            print(userid)
+            print(request.user.id)
+            print(int(userid) == request.user.id)
+            if userid:
+                if userid==request.user.id:
+                    user= CustomUser.objects.get(pk=userid)
+                    user.delete()
+                    return self.create_response("User Permenently Deleted Successfully",status.HTTP_200_OK)
+                else:
+                    return self.create_response("You are are not Authorized to delete account",status.HTTP_401_UNAUTHORIZED)
+
             else:
                 return self.create_response("User id not found",status.HTTP_400_BAD_REQUEST)
-            user= CustomUser.objects.get(pk=user_id)
-            if user == request.user:
-                user.delete()
-                return self.create_response("User Permenently Deleted Successfully",status.HTTP_200_OK)
-            else:
-                return self.create_response("You are are not Authorized to delete account",status.HTTP_401_UNAUTHORIZED)
-
         except Exception as e:
             return self.create_response(f"Error{e}",status.HTTP_400_BAD_REQUEST)
 
@@ -167,14 +184,14 @@ class UserLoginApiView(APIView):
             return self.create_response("Authentication failed",status.HTTP_401_UNAUTHORIZED)
         login(request,authenticatedUser)
         token=get_auth_token(authenticatedUser)
-        custom_token, created = CustomToken.objects.get_or_create(user=authenticatedUser,defaults={"refresh_token":token["refresh_token"],"access_token":token["access_token"]})
-        print("token created",created)
-        if not created:
-            custom_token.refresh_token = token["refresh_token"]
-            custom_token.access_token = token["access_token"]
-            custom_token.save(update_fields=['refresh_token',"access_token"])
-            print("token updated")
-        print(request.user)
+        # custom_token, created = CustomToken.objects.get_or_create(user=authenticatedUser,defaults={"refresh_token":token["refresh_token"],"access_token":token["access_token"]})
+        # print("token created",created)
+        # if not created:
+        #     custom_token.refresh_token = token["refresh_token"]
+        #     custom_token.access_token = token["access_token"]
+        #     custom_token.save(update_fields=['refresh_token',"access_token"])
+        #     print("token updated")
+        # print(request.user)
         authenticate_user=CustomeUserSerializer(authenticatedUser)
         return self.create_response("User authenticated",status.HTTP_200_OK,authenticate_user.data,token["access_token"],token["refresh_token"])
 class UserLogoutView(APIView):
@@ -213,6 +230,29 @@ class UserLogoutView(APIView):
         return self.create_response("Something went wrong",status.HTTP_400_BAD_REQUEST)
 class PostApiView(APIView):
     permission_classes=[IsAuthorizedUser]
+    # def comment_reply(self,all_post):
+    #     serialized_posts = []
+    #     for post in all_post:
+    #         post_data = PostSerializer2(post).data
+    #         comments_data = CommentSerializer2(post.post_comment.all(), many=True).data
+    #         post_data['comments'] = comments_data
+    #         serialized_posts.append(post_data)
+    #     return serialized_posts
+    #     # print("fun called")
+    #     # comment1=[]
+    #     # for post in all_post:
+    #     #     comments_data={"comments":None,"reply":None}
+    #     #     for comment in post.post_comment.all():
+    #     #         if comment.parent_comment_id:
+    #     #             comments_data["comments"]={'comments': comment.comments,'id':comment.id}
+    #     #         else:
+    #     #             comments_data["reply"]={'comments': comment.comments,'id':comment.id,"replied_to":comment.parent_comment_id}
+    #     #     comment1.append(comments_data)
+    #     # jsonString=json.dumps(comment1)
+    #     # print(jsonString)
+    #     # print(comment1)
+    #     # data=CommentSerializer(comment1)
+    #     # print(data.data)
     def create_response(self,message,code,data=None):
         response={
                 "status":
@@ -227,33 +267,35 @@ class PostApiView(APIView):
     
     def get(self,request):
         params=request.GET
-        filters={}
-        for key,value in params.items():
-            filters[key]=value
-        all_post=Post.customCreate.get_post_and_related_comments()
-        if "orderby" in filters:
-            all_post=all_post.order_by(filters.get("orderby"))
-        if "title" in filters:
-            all_post=all_post.filter(title__istartswith=filters.get("title"))
-        if "search" in filters:
-            all_post=all_post.filter(Q(title__icontains=filters.get("search")) | Q(category__name__icontains=filters.get("search"))|Q(content__icontains=filters.get("search")))
-        posts_data=[]
-        for post in all_post:
-            post_data = {
-            'id':post.id,
-            'title': post.title,
-            'content': post.content,
-            'userid':post.userid,
-            'category':post.category,
-            'created_at':post.created_at,
-            'updated_at':post.updated_at,
-            'comments': [{'comments': comment.comments,'id':comment.id,"userid":comment.userid,"postid":comment.postid,"parent_comment_id":comment.parent_comment_id,"created_at":comment.created_at,"updated_at":comment.updated_at} for comment in post.post_comment.all()]
-            }
-            posts_data.append(post_data)
-        print(posts_data)
-        SerializedPost=PostSerializer(posts_data,many=True)
-        return self.create_response("All post",status.HTTP_200_OK,SerializedPost.data)
-   
+        order_by=request.GET.get("orderby") or "updated_at" 
+        search_by=request.GET.get("search") or ""
+        print(order_by)
+        try:
+            all_post=Post.customCreate.post_filter(search_by,order_by)
+            # all_reply=Comments.objects.filter(parent_comment_id__isnull=False)
+
+            # print(all_reply)
+            # # d=self.comment_reply(all_post)
+            # return self.create_response("h","200")
+            posts_data=[]
+            for post in all_post:
+                post_data = {
+                'id':post.id,
+                'title': post.title,
+                'content': post.content,
+                'userid':post.userid,
+                'category':post.category,
+                'created_at':post.created_at,
+                'updated_at':post.updated_at,
+                'comments': [{'comments': comment.comments,'id':comment.id,"userid":comment.userid,"postid":comment.postid,"parent_comment_id":comment.parent_comment_id,"created_at":comment.created_at,"updated_at":comment.updated_at} for comment in post.post_comment.all()]
+                }
+                posts_data.append(post_data)
+            # print(posts_data)
+            SerializedPost=PostSerializer(posts_data,many=True)
+            return self.create_response("All post",status.HTTP_200_OK,SerializedPost.data)
+        except Exception as e:
+            return self.create_response(f"Error {e}",status.HTTP_400_BAD_REQUEST)
+
     def post(self,request):
         new_post_data=request.data
         new_post_data["userid"]=request.user
@@ -268,13 +310,15 @@ class PostApiView(APIView):
             return self.create_response(f"Error {e} ",status.HTTP_400_BAD_REQUEST)
     
     def patch(self,request,*args,**kwargs):
-        if "id" in kwargs:
+        postid=int(request.GET.get("postid"))
+        if postid:
             try:
-                post_id=kwargs.get("id")
+                # post_id=kwargs.get("id")
                 new_data_to_update=request.data
-                user=request.user
+                user=request.user.id
+                print("on 283")
                 print(user)
-                user_post=Post.objects.filter(userid_id=user,id=post_id).first()
+                user_post=Post.objects.filter(userid_id=user,id=postid).first()
                 print(user_post)
                 if not user_post:
                     return self.create_response("your are not authorized or post does not exist",status.HTTP_400_BAD_REQUEST)
@@ -293,6 +337,9 @@ class PostApiView(APIView):
                     return self.create_response("Post updated successfully",status.HTTP_200_OK)
             except Exception as e:
                 return self.create_response(f"Error {e} ",status.HTTP_200_OK)
+        else:
+            return self.create_response("Postid not found",status.HTTP_404_NOT_FOUND)
+
     
     def delete(self,request,*args,**kwargs):
         if "id" in kwargs:
@@ -369,35 +416,36 @@ class CategoryApiView(APIView):
             if category_deleted:
                 return self.create_response("Category deleted successfully",status.HTTP_200_OK)
 
-# class Commentofpost(APIView):
-#     def create_response(self,message,code,data=None):
-#         response={
-#                 "status":
-#                 {
-#                     "message": message,
-#                     "code":code,
-#                 }
-#             }
-#         if data is not None:
-#             response["status"]["data"]=data
-#         return Response(response)
-#     def get(self,request):
-#         comment_type=request.GET.get("type")
-#         comment_type=str(comment_type).strip().lower().replace(" ","")
-#         params=request.GET
-#         if comment_type=="comment":
-#             postid=request.query_params.get('postid')
-#             # print("geeeeee")
-#             if postid:
-#                 single_category=Comments.objects.filter(Q(postid=postid) | Q(parent_comment_id=None)).all()
-#                 print(single_category)
-#                 if single_category is None:
-#                     return self.create_response("No Data Found",status.HTTP_404_NOT_FOUND)
-#                 else:
-#                     SerializedCategory=FilterCommentSerializer(single_category,many=True)
-#                     return self.create_response("All comments of single post",status.HTTP_200_OK,SerializedCategory.data)
-#             return self.create_response("post id not found",status.HTTP_400_BAD_REQUEST)
-        
+class Commentofpost(APIView):
+    def get(self,request):
+        response={
+            "status":
+            {
+                "message":"",
+                "status": ""
+            },}
+        comment_type=request.GET.get("type")
+        comment_type=str(comment_type).strip().lower().replace(" ","")
+        if comment_type=="comment":
+            postid=request.query_params.get('postid')
+            # print("geeeeee")
+            if postid:
+                single_category=Comments.objects.filter(Q(postid=postid) | Q(parent_comment_id=None)).all()
+                print(single_category)
+                if single_category is None:
+                    response["status"]["data"]=""
+                    response["status"]["status"]=status.HTTP_404_NOT_FOUND
+                    response["status"]["message"]="No Data Found"
+                    return Response(response)
+                else:
+                    SerializedCategory=FilterCommentSerializer(single_category,many=True)
+                    response["status"]["data"]=SerializedCategory.data
+                    response["status"]["status"]=status.HTTP_200_OK
+                    response["status"]["message"]="All comments of single post"
+                    return Response(response)
+            response["status"]["status"]=status.HTTP_400_BAD_REQUEST
+            response["status"]["message"]="postid not found"
+            return Response(response)
 class CommentApiView(APIView):
     permission_classes=[IsAuthorizedUser]
     def create_response(self,message,code,data=None):
@@ -436,27 +484,33 @@ class CommentApiView(APIView):
     
     def get(self,request):
         params=request.GET
+        order_by=request.GET.get("orderby") or "updated_at" 
+        search_by=request.GET.get("search") or ""
+        type=request.GET.get("reply")
+        comment_id=request.GET.get("id")
+        print(search_by)
+
         print(params)
-        filters={}
-        comment_type=request.GET.get("type")
         try:
-            if comment_type=="reply":
-                reply_of_perticular_comments=Comments.objects.filter(parent_comment_id=params.get("search"))
-                if reply_of_perticular_comments:
-                    Serialized_comment_reply=FilterCommentSerializer(reply_of_perticular_comments,many=True)
-                    return self.create_response("Reply of comments",status.HTTP_200_OK,Serialized_comment_reply.data)
+            all_comments=Comments.objects.all()
+            if not type and not comment_id:
+                
+                all_comments=Comments.commentManager.comment_filter(search_by,order_by)
             else:
-                all_comments=Comments.objects.all()
+                pass
+                # print(search_by)
+                # all_comments=all_comments.filter(Q(parent_comment_id=comment_id)|Q(comments__icontains=search_by)).order_by(order_by)
+                # all_comments=all_comments.filter(Q(comments__icontains=search_by)).order_by(order_by)
             serialized_comments=CommentSerializer(all_comments,many=True)
             return self.create_response("All comments of post",status.HTTP_200_OK,serialized_comments.data)
         except Exception as e:
             return self.create_response(f"Error {e}",status.HTTP_400_BAD_REQUEST)
-   
     def post(self,request):
         try:
             comment_type=request.data.get("type")
-            comment_type=str(comment_type).strip().lower().replace(" ","")
+            comment_type=str(comment_type).strip().lower().replace(" ","") or "comment"
             new_comment_data=request.data
+            # new_comment_data["userid"]=request.user.id
             print(new_comment_data.get("userid"))
             print(request.user)
             if request.user.id==new_comment_data.get("userid"):
@@ -491,44 +545,3 @@ class CommentApiView(APIView):
                 return self.create_response("Comment does not exist",status.HTTP_400_BAD_REQUEST)
         else:
             return self.create_response("you are not authorized",status.HTTP_400_BAD_REQUEST)   
-        
-class UserChangePassword(APIView):
-    def create_response(self,message,code,data=None):
-        response={
-                "status":
-                {
-                    "message": message,
-                    "code":code,
-                }
-            }
-        if data is not None:
-            response["status"]["data"]=data
-        return Response(response)
-    permission_classes=[IsAuthenticated]
-    def post(self,request):
-        try:
-            serializer=UserChangedSerializer(data=request.data,context={'user':request.user})
-            if serializer.is_valid(raise_exception=True):
-                return self.create_response("password changed successfully",status.HTTP_200_OK)
-        except Exception as e:
-            return self.create_response(f"Error {e}",status.HTTP_400_BAD_REQUEST)
-# class SendResetPasswordEmailView(APIView):
-#     def create_response(self,message,code,data=None):
-#         response={
-#                 "status":
-#                 {
-#                     "message": message,
-#                     "code":code,
-#                 }
-#             }
-#         if data is not None:
-#             response["status"]["data"]=data
-#         return Response(response)
-#     permission_classes=[IsAuthenticated]
-#     def post(self,request):
-#         try:
-#             serializer=SendResetPasswordEmailSerializer(data=request.data)
-#             if serializer.is_valid(raise_exception=True):
-#                 return self.create_response("password reset link send successfully!Please check your email",status.HTTP_200_OK)
-#         except Exception as e:
-#             return self.create_response(f"Error {e}",status.HTTP_400_BAD_REQUEST)

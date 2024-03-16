@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
-from .managers import CustomUserManager,PostManager
+from .managers import CustomUserManager,PostManager,CommentManager
 from django.conf import settings
 from django.utils import timezone
 
@@ -28,8 +28,10 @@ class Post(models.Model):
     category=models.ForeignKey(Category,on_delete=models.CASCADE)
     created_at=models.DateTimeField(auto_now_add=True)
     updated_at=models.DateTimeField(auto_now=True)
+    # post_image=models.ImageField(upload_to=)
     objects=models.Manager()
     customCreate=PostManager()
+
     
 
 class Comments(models.Model):
@@ -38,6 +40,7 @@ class Comments(models.Model):
     parent_comment_id=models.ForeignKey("self",null=True,default=None,blank=True,on_delete=models.CASCADE,related_name="parent_comment")
     comments=models.CharField(max_length=200)
     objects=models.Manager()
+    commentManager=CommentManager()
     created_at=models.DateTimeField(auto_now_add=True)
     updated_at=models.DateTimeField(auto_now=True)
     

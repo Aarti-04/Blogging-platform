@@ -2,6 +2,7 @@ from typing import Any
 from django.contrib.auth.base_user import BaseUserManager
 from django.utils.translation import gettext_lazy as _
 from django.db import models
+from django.db.models import Q
 # from .models import Category
 
 
@@ -49,5 +50,13 @@ class CustomUserManager(BaseUserManager):
 #     def get_all(self):
 #         return super().get_queryset().all()
 class PostManager(models.Manager):
-    def get_post_and_related_comments(self):
-       return super().get_queryset().prefetch_related("post_comment")
+    def post_filter(self,search_by,order_by):
+        return super().get_queryset().prefetch_related("post_comment__parent_comment").filter(Q(title__icontains=search_by) | Q(category__name__icontains=search_by)|Q(content__icontains=search_by)|Q(userid__email__icontains  =search_by)).order_by(order_by)
+        
+    # def get_post_and_related_comments(self):
+    #    return super().get_queryset().prefetch_related("post_comment")
+class CommentManager(models.Manager):
+    def comment_filter(self,search_by,order_by):
+        return super().get_queryset().filter(Q(comments__icontains=search_by)|Q(userid__email__icontains=search_by)|Q(postid__title__icontains=search_by)).order_by(order_by)
+
+        
