@@ -61,12 +61,18 @@ class CommentSerializer(serializers.ModelSerializer):
         model=Comments
         fields=["id","useremail","postitle","comments","created_at","updated_at","parent_comment_id"]
 class PostSerializer(serializers.ModelSerializer):  
-    useremail=serializers.CharField(source='userid.email')
-    categoryname=serializers.CharField(source="category.name")
+    useremail=serializers.CharField(source='userid.email',read_only=True)
+    categoryname=serializers.CharField(source="category.name",read_only=True)
+    userid = serializers.UUIDField(write_only=True)  # Change to UUIDField for user ID
+    category = serializers.UUIDField(write_only=True)
     comments = CommentSerializer(many=True, read_only=True)
+    # post_image = serializers.ImageField(required=False)
     class Meta:
         model=Post
-        exclude = ['userid', 'category']
+        fields="__all__"
+        # exclude = ['']
+    def create(self, validated_data):
+        return super().create(validated_data)
 class FilterCommentSerializer(serializers.ModelSerializer):  
     postname = serializers.CharField(source='postid.title')
     username = serializers.CharField(source='userid.email')

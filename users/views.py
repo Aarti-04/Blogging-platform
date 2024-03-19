@@ -11,6 +11,8 @@ from django.db.models import Q
 import jwt
 from datetime import datetime,timedelta
 import json
+import os
+# from rest_framework.parsers import MultiPartParser, FormParser
 def get_auth_token(authenticatedUser):
     access_token=AccessToken.for_user(authenticatedUser)
     refresh_token=RefreshToken.for_user(authenticatedUser)
@@ -21,14 +23,14 @@ class AdminApiView(APIView):
     permission_classes=[IsAdminUser]
     def create_response(self,message,code,data=None):
         response={
-                "status":
+                "data":
                 {
                     "message": message,
                     "code":code,
                 }
             }
         if data is not None:
-            response["status"]["data"]=data
+            response["data"]["data"]=data
         return Response(response)
     
     def get(self,request):
@@ -84,14 +86,14 @@ class UserApiView(APIView):
     permission_classes=[IsAuthenticateUser]
     def create_response(self,message,code,data=None):
         response={
-                "status":
+                "data":
                 {
                     "message": message,
                     "code":code,
                 }
             }
         if data is not None:
-            response["status"]["data"]=data
+            response["data"]["data"]=data
         return Response(response)
      
     def get(self,request):
@@ -158,17 +160,17 @@ class UserApiView(APIView):
 class UserLoginApiView(APIView):
     def create_response(self,message,code,data=None,access_token=None,refresh_token=None):
         response={
-                "status":
+                "data":
                 {
                     "message": message,
                     "code":code,
                 }
             }
         if data is not None:
-            response["status"]["data"]=data
+            response["data"]["data"]=data
         if access_token and refresh_token is not None:
-            response["status"]["access_token"]=access_token 
-            response["status"]["refresh_token"]=access_token 
+            response["data"]["access_token"]=access_token 
+            response["data"]["refresh_token"]=access_token 
         return Response(response)
     
     def post(self,request):
@@ -230,41 +232,60 @@ class UserLogoutView(APIView):
         return self.create_response("Something went wrong",status.HTTP_400_BAD_REQUEST)
 class PostApiView(APIView):
     permission_classes=[IsAuthorizedUser]
-    # def comment_reply(self,all_post):
-    #     serialized_posts = []
-    #     for post in all_post:
-    #         post_data = PostSerializer2(post).data
-    #         comments_data = CommentSerializer2(post.post_comment.all(), many=True).data
-    #         post_data['comments'] = comments_data
-    #         serialized_posts.append(post_data)
-    #     return serialized_posts
-    #     # print("fun called")
-    #     # comment1=[]
-    #     # for post in all_post:
-    #     #     comments_data={"comments":None,"reply":None}
-    #     #     for comment in post.post_comment.all():
-    #     #         if comment.parent_comment_id:
-    #     #             comments_data["comments"]={'comments': comment.comments,'id':comment.id}
-    #     #         else:
-    #     #             comments_data["reply"]={'comments': comment.comments,'id':comment.id,"replied_to":comment.parent_comment_id}
-    #     #     comment1.append(comments_data)
-    #     # jsonString=json.dumps(comment1)
-    #     # print(jsonString)
-    #     # print(comment1)
-    #     # data=CommentSerializer(comment1)
-    #     # print(data.data)
     def create_response(self,message,code,data=None):
         response={
-                "status":
+                "data":
                 {
                     "message": message,
                     "code":code,
                 }
             }
         if data is not None:
-            response["status"]["data"]=data
+            response["data"]["data"]=data
         return Response(response)
-    
+    # def reply_of_comment(self,post):
+    #     comment_reply={}
+    #     for comment in post.post_comment.all():
+    #         comment_reply['comments']= [{'comments': comment.comments,'id':comment.id,"userid":comment.userid,"postid":comment.postid,"created_at":comment.created_at,"updated_at":comment.updated_at}]
+    #         if comment.parent_comment_id:
+    #             comment_reply['reply']=[{'comments': comment.comments,'id':comment.id,"userid":comment.userid,"postid":comment.postid,"created_at":comment.created_at,"updated_at":comment.updated_at}]
+    #     print(comment_reply)
+    #     return comment_reply
+    def reply_of_comment(self, post):
+        comment_reply = []
+
+    # Iterate through each comment associated with the post
+        for comment in post.post_comment.all():
+            comment_data = {
+                'id': comment.id,
+                'comments': comment.comments,
+                'userid': comment.userid,
+                'postid': comment.postid,
+                'created_at': comment.created_at,
+                'updated_at': comment.updated_at,
+                'reply': []  # Initialize an empty list for replies
+            }
+            print("parent",comment.parent_comment_id)
+            if comment.parent_comment_id:
+                print("in parent")
+                reply=Comments.objects.get(id=comment.parent_comment_id)
+                print("reply....",reply.comment)
+        #     # Check if the comment has a parent (i.e., it's a reply)
+            # if comment.parent_comment_id:
+            #     if comment_data['id'] == comment.parent_comment_id:
+            #         reply=Comments.objects.filter(parent_comment_id=comment.parent_comment_id)
+            #         print("on 274",reply)
+
+
+        #         if parent_comment:
+
+        #             parent_comment['reply'].append(comment_data)
+        #     else:
+        #         # If it's not a reply (i.e., it's a top-level comment), append it directly to the list
+        #         comment_reply.append(comment_data)
+        # print("on 278")
+        # print(comment_reply)
+        # return list(comment_reply)
     def get(self,request):
         params=request.GET
         order_by=request.GET.get("orderby") or "updated_at" 
@@ -287,24 +308,34 @@ class PostApiView(APIView):
                 'category':post.category,
                 'created_at':post.created_at,
                 'updated_at':post.updated_at,
+                'post_image':post.post_image.url if post.post_image else None,
+                # 'post_comment':print(self.reply_of_comment(post))
                 'comments': [{'comments': comment.comments,'id':comment.id,"userid":comment.userid,"postid":comment.postid,"parent_comment_id":comment.parent_comment_id,"created_at":comment.created_at,"updated_at":comment.updated_at} for comment in post.post_comment.all()]
                 }
+                # print("innnn")
+                # p=post
+                # print("on 314",self.reply_of_comment(p))
                 posts_data.append(post_data)
             # print(posts_data)
             SerializedPost=PostSerializer(posts_data,many=True)
+            # if SerializedPost.is_valid(raise_exception=True):
             return self.create_response("All post",status.HTTP_200_OK,SerializedPost.data)
         except Exception as e:
             return self.create_response(f"Error {e}",status.HTTP_400_BAD_REQUEST)
 
     def post(self,request):
         new_post_data=request.data
-        new_post_data["userid"]=request.user
+        new_post_data["userid"]=request.user.id
         try:
             category=Category.objects.get(pk=new_post_data.get("category"))
             if category is not None:
-                new_post_data["category"]=category
-                new_post=Post(**new_post_data)
-                new_post.save()
+                new_post_data["category"]=category.id
+                # new_post=Post(**new_post_data)
+                # new_post.save()
+                new_post=PostSerializer(data=new_post_data)
+                if new_post.is_valid(raise_exception=True):
+                    new_post.save()
+
                 return self.create_response("post created successful",status.HTTP_201_CREATED)
         except Exception as e:
             return self.create_response(f"Error {e} ",status.HTTP_400_BAD_REQUEST)
@@ -342,13 +373,25 @@ class PostApiView(APIView):
 
     
     def delete(self,request,*args,**kwargs):
-        if "id" in kwargs:
-            post_id=kwargs.get("id")
-            user=request.user
+        id=request.GET
+        print()
+        post_id=str(id.get("id"))
+        if id:
+            # post_id=str(kwargs.get("id"))
+            user=request.user.id
+            print(post_id)
             post_user=Post.objects.filter(userid_id=user,id=post_id).first()
             if not post_user:
                 return self.create_response("you are not authorized or post does not exist",status.HTTP_400_BAD_REQUEST)
-            post_updated=Post.objects.filter(id=post_id).delete()
+            post_to_delete=Post.objects.filter(id=post_id).first()
+            post_image_path=post_to_delete.post_image
+            print(post_image_path)
+            image_to_remove=str(post_image_path).split("/")[-1]
+            if os.path.exists(str(image_to_remove)):
+                print("ssss")
+                os.remove(image_to_remove)
+            print(image_to_remove)
+            post_updated=post_to_delete.delete()
             if post_updated:
                 return self.create_response("Post deleted successfully",status.HTTP_200_OK)
 class CategoryApiView(APIView):
@@ -356,14 +399,14 @@ class CategoryApiView(APIView):
     permission_classes=[IsAuthorizedUser]
     def create_response(self,message,code,data=None):
         response={
-                "status":
+                "data":
                 {
                     "message": message,
                     "code":code,
                 }
             }
         if data is not None:
-            response["status"]["data"]=data
+            response["data"]["data"]=data
         return Response(response)
 
     def get(self,request):
@@ -419,7 +462,7 @@ class CategoryApiView(APIView):
 class Commentofpost(APIView):
     def get(self,request):
         response={
-            "status":
+            "data":
             {
                 "message":"",
                 "status": ""
@@ -433,31 +476,31 @@ class Commentofpost(APIView):
                 single_category=Comments.objects.filter(Q(postid=postid) | Q(parent_comment_id=None)).all()
                 print(single_category)
                 if single_category is None:
-                    response["status"]["data"]=""
-                    response["status"]["status"]=status.HTTP_404_NOT_FOUND
-                    response["status"]["message"]="No Data Found"
+                    response["data"]["data"]=""
+                    response["data"]["status"]=status.HTTP_404_NOT_FOUND
+                    response["data"]["message"]="No Data Found"
                     return Response(response)
                 else:
                     SerializedCategory=FilterCommentSerializer(single_category,many=True)
-                    response["status"]["data"]=SerializedCategory.data
-                    response["status"]["status"]=status.HTTP_200_OK
-                    response["status"]["message"]="All comments of single post"
+                    response["data"]["data"]=SerializedCategory.data
+                    response["data"]["status"]=status.HTTP_200_OK
+                    response["data"]["message"]="All comments of single post"
                     return Response(response)
-            response["status"]["status"]=status.HTTP_400_BAD_REQUEST
-            response["status"]["message"]="postid not found"
+            response["data"]["status"]=status.HTTP_400_BAD_REQUEST
+            response["data"]["message"]="postid not found"
             return Response(response)
 class CommentApiView(APIView):
     permission_classes=[IsAuthorizedUser]
     def create_response(self,message,code,data=None):
         response={
-                "status":
+                "data":
                 {
                     "message": message,
                     "code":code,
                 }
             }
         if data is not None:
-            response["status"]["data"]=data
+            response["data"]["data"]=data
         return Response(response)
     
     def assign_comment_data_to_comment_object(self,new_comment_data,new_comment):
@@ -474,12 +517,15 @@ class CommentApiView(APIView):
                 print(postid_to_comment)
                 setattr(new_comment,column,postid_to_comment)
             elif column=="parent_comment_id":
+                print(value)
                 parent_post_to_reply=Comments.objects.filter(id=value).first()
                 print("on 465")
+                print("ppppppppppppp")
                 print(parent_post_to_reply)
                 setattr(new_comment,column,parent_post_to_reply)
             else:
                 setattr(new_comment,column,value)
+        print(new_comment)
         return new_comment
     
     def get(self,request):
@@ -512,14 +558,15 @@ class CommentApiView(APIView):
             new_comment_data=request.data
             # new_comment_data["userid"]=request.user.id
             print(new_comment_data.get("userid"))
-            print(request.user)
-            if request.user.id==new_comment_data.get("userid"):
+            print(request.user.id)
+            if str(request.user.id)==str(new_comment_data.get("userid")):
                 if comment_type=="comment":
                     new_comment=Comments()
                     new_comment=self.assign_comment_data_to_comment_object(new_comment_data,new_comment)
                     new_comment.save()
                     return self.create_response("Comment Added",status.HTTP_201_CREATED)
                 if comment_type=="reply":
+                    print("in reply")
                     new_comment_data=request.data
                     reply_to_comment=Comments()
                     reply_to_comment=self.assign_comment_data_to_comment_object(new_comment_data,reply_to_comment)
