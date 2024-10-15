@@ -333,7 +333,7 @@ class PostApiView(APIView):
                 # new_post=Post(**new_post_data)
                 # new_post.save()
                 new_post=PostSerializer(data=new_post_data)
-                if new_post.is_valid(raise_exception=True):
+                if new_post.is_valid(raise_exception=False):
                     new_post.save()
 
                 return self.create_response("post created successful",status.HTTP_201_CREATED)
@@ -341,7 +341,7 @@ class PostApiView(APIView):
             return self.create_response(f"Error {e} ",status.HTTP_400_BAD_REQUEST)
     
     def patch(self,request,*args,**kwargs):
-        postid=int(request.GET.get("postid"))
+        postid=request.GET.get("postid")
         if postid:
             try:
                 # post_id=kwargs.get("id")
@@ -374,7 +374,7 @@ class PostApiView(APIView):
     
     def delete(self,request,*args,**kwargs):
         id=request.GET
-        print()
+        print("*******id",id)
         post_id=str(id.get("id"))
         if id:
             # post_id=str(kwargs.get("id"))

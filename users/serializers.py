@@ -72,6 +72,21 @@ class PostSerializer(serializers.ModelSerializer):
         fields="__all__"
         # exclude = ['']
     def create(self, validated_data):
+        user_id = validated_data.pop('userid')
+        category_id = validated_data.pop('category')
+
+
+        # Get the actual CustomUser instance using the user_id
+        user = CustomUser.objects.get(pk=user_id)
+        category = Category.objects.get(pk=category_id)
+
+
+        # Assign the user instance to the Post model
+        validated_data['userid'] = user
+        validated_data['category'] = category
+
+
+        # Create the post
         return super().create(validated_data)
 class FilterCommentSerializer(serializers.ModelSerializer):  
     postname = serializers.CharField(source='postid.title')
