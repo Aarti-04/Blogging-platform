@@ -1,4 +1,4 @@
-Blog Posting Platform (Backend)
+<b>Blog Posting Platform (Backend)</b><br><br>
 This project is a simple blog posting platform where users can register, log in, and create blog posts. Users can dynamically generate categories and create posts associated with a particular category. Additionally, users can add comments to posts, and others can reply to these comments. All users can view comments and replies, fostering interaction within the platform.
 
 Key Features
@@ -37,7 +37,7 @@ It's recommended to run the project in a virtual environment to isolate dependen
 
 python3 -m venv venv
 source venv/bin/activate  # For Linux/macOS
-# or
+or
 venv\Scripts\activate  # For Windows
 
 3. Install Dependencies
