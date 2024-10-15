@@ -174,29 +174,16 @@ class UserLoginApiView(APIView):
         return Response(response)
     
     def post(self,request):
-        print("in login")
         user =request.data
         authenticatedUser=authenticate(request,**user)
-        print("before login user")
-        print(request.user)
-        print(authenticatedUser)
-        print("after login")
-        print(request.user)
         if authenticatedUser is None:
             return self.create_response("Authentication failed",status.HTTP_401_UNAUTHORIZED)
         login(request,authenticatedUser)
         token=get_auth_token(authenticatedUser)
-        # custom_token, created = CustomToken.objects.get_or_create(user=authenticatedUser,defaults={"refresh_token":token["refresh_token"],"access_token":token["access_token"]})
-        # print("token created",created)
-        # if not created:
-        #     custom_token.refresh_token = token["refresh_token"]
-        #     custom_token.access_token = token["access_token"]
-        #     custom_token.save(update_fields=['refresh_token',"access_token"])
-        #     print("token updated")
-        # print(request.user)
         authenticate_user=CustomeUserSerializer(authenticatedUser)
         return self.create_response("User authenticated",status.HTTP_200_OK,authenticate_user.data,token["access_token"],token["refresh_token"])
 class UserLogoutView(APIView):
+    # logout api is not working (WIP)
     permission_classes=[IsAuthenticated]
     def create_response(self,message,code,data=None):
         response={
@@ -211,17 +198,11 @@ class UserLogoutView(APIView):
         return Response(response)
     
     def post(self, request):
-        print(request.user)
-        # print(request.user.auth_token)
         token=request.headers["Authorization"].split()[1]
         token_obj=CustomToken.objects.filter(access_token=token).first()
-        print(token_obj)
         payload = jwt.decode(token,'django-insecure--&)m)7+x@saihb(8-r#srb(%ivgb*#bd-45&ej+cc4ba4xajum',algorithms=['HS256'])
-        print(payload)
         expiration = datetime.utcnow() + timedelta(seconds=0)
         payload['exp'] =expiration
-        print(payload)
-        print(token_obj)
         if token_obj:
             # user=CustomUser.objects.get(pk=request.user.id)
             # user.is_active=False
